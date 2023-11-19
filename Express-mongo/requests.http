@@ -1,0 +1,58 @@
+###
+POST http://localhost:9000/api/gestion_configuracion HTTP/1.1
+Content-Type: application/json
+
+{
+    "rol": [
+        {
+            "nombre_rol": "cliente",
+            "estado_rol": true
+        }
+    ],
+    "permisos": [
+        {
+            "nombre_permiso": "ver mi perfil",
+            "estado_permiso": true
+        },
+        {
+            "nombre_permiso": "editar perfil",
+            "estado_permiso": false
+        },
+        {
+            "nombre_permiso": "eliminar cuenta",
+            "estado_permiso": true
+        }
+
+    ],
+    "nombre": "Nelson David Valencia Alzate",
+    "correo": "valenciaalzatenelsondavid@gmail.com",
+    "documento": 1000898565,
+    "contraseña": 3005604163,
+    "estado_usuario": true
+}
+
+
+###
+GET http://localhost:9000/api/gestion_configuracion HTTP/1.1
+
+###
+GET http://localhost:9000/api/gestion_configuracion/654ffc4a10ef0daa72c3921a HTTP/1.1
+
+###
+PUT http://localhost:9000/api/gestion_configuracion/654ff85b6c2f6bfe941fa652 HTTP/1.1
+Content-Type: application/json
+
+{
+    "nombre_rol":"cliente",
+    "estado_rol":true,
+    "nombre_permiso":"ver mi perfil",
+    "estado_permiso":true,
+    "nombre":"Nelson David Valencia Alzate",
+    "correo":"valenciaalzatenelsondavid@gmail.com",
+    "documento":"1000898565",
+    "contraseña":"3005604163",
+    "estado_usuario":true
+}
+
+###
+DELETE  http://localhost:9000/api/gestion_configuracion/654ff85b6c2f6bfe941fa652 HTTP/1.1
