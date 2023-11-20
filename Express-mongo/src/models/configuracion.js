@@ -47,4 +47,6 @@ const configuracionSchema = mongoose.Schema({
     }
 });
 
-module.exports = mongoose.model('gestion_configuracion', configuracionSchema);
+const ConfiguracionModel = mongoose.model('gestion_configuracion', configuracionSchema, 'gestion_configuracion');
+
+module.exports = ConfiguracionModel;

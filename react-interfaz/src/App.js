@@ -8,6 +8,7 @@ Modal.setAppElement('#root');
 
 function App() {
   const [configuraciones, setConfiguraciones] = useState([]);
+  const [originalConfiguraciones, setOriginalConfiguraciones] = useState([]);
   const [nuevaConfiguracion, setNuevaConfiguracion] = useState({
     rol: [],
     permisos: [],
@@ -27,6 +28,7 @@ function App() {
       .get('http://localhost:9000/api/gestion_configuracion')
       .then((response) => {
         setConfiguraciones(response.data);
+        setOriginalConfiguraciones(response.data); // Almacena el estado original
       })
       .catch((error) => {
         console.error('Error fetching data:', error);
@@ -35,11 +37,16 @@ function App() {
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
-      const filtered = configuraciones.filter((configuracion) =>
-        configuracion.documento.toLowerCase().includes(searchTerm.toLowerCase())
+      const filtered = originalConfiguraciones.filter((configuracion) =>
+        String(configuracion.documento).toLowerCase().includes(searchTerm.toLowerCase())
       );
       setConfiguraciones(filtered);
     }
+  };
+  
+  const resetSearch = () => {
+    setSearchTerm('');
+    setConfiguraciones(originalConfiguraciones);
   };
 
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -59,7 +66,7 @@ function App() {
       .then((response) => {
         setConfiguraciones([...configuraciones, response.data]);
         setNuevaConfiguracion({
-          rol: [],
+          rol: [],  // Limpiamos el rol para futuras creaciones
           permisos: [],
           nombre: '',
           correo: '',
@@ -73,6 +80,61 @@ function App() {
         console.error('Error creating configuracion:', error);
       });
   };
+
+  const agregarPermiso = () => {
+    setNuevaConfiguracion({
+      ...nuevaConfiguracion,
+      permisos: [
+        ...nuevaConfiguracion.permisos,
+        { nombre_permiso: '', estado_permiso: true },
+      ],
+    });
+  };
+
+  const eliminarUltimoPermiso = () => {
+    const nuevosPermisos = [...nuevaConfiguracion.permisos];
+    nuevosPermisos.pop(); // Elimina el último permiso del array
+    setNuevaConfiguracion({
+      ...nuevaConfiguracion,
+      permisos: nuevosPermisos,
+    });
+  };
+
+  const editarConfiguracion = () => {
+    axios
+      .put(`http://localhost:9000/api/gestion_configuracion/${nuevaConfiguracion._id}`, nuevaConfiguracion)
+      .then((response) => {
+        // Actualizar el estado de configuraciones manualmente
+        const index = configuraciones.findIndex((config) => config._id === nuevaConfiguracion._id);
+        const nuevasConfiguraciones = [...configuraciones];
+        nuevasConfiguraciones[index] = response.data;
+        setConfiguraciones(nuevasConfiguraciones);
+        setModalIsOpen(false);
+      })
+      .catch((error) => {
+        console.error('Error editando configuración:', error);
+      });
+  };
+  
+  
+
+  const handleEditarConfiguracion = (configuracion) => {
+    setNuevaConfiguracion({ ...configuracion });
+    setModalIsOpen(true);
+  };
+  
+  const handleEliminarConfiguracion = (configuracionId) => {
+    axios
+      .delete(`http://localhost:9000/api/gestion_configuracion/${configuracionId}`)
+      .then((response) => {
+        // Actualizar el estado después de eliminar
+        setConfiguraciones(configuraciones.filter((config) => config._id !== configuracionId));
+      })
+      .catch((error) => {
+        console.error('Error deleting configuracion:', error);
+      });
+  };
+  
 
   const generarReportePDF = () => {
     if (Array.isArray(currentItems)) {
@@ -113,31 +175,39 @@ function App() {
         onChange={(e) => setSearchTerm(e.target.value)}
         onKeyPress={handleKeyPress}
       />
+      <button onClick={resetSearch}>Mostrar Todos</button>
 
       <button onClick={() => setModalIsOpen(true)}>Agregar Nueva Configuración</button>
 
       <table>
         <thead>
           <tr>
+            <th>id</th>
+            <th>Rol</th>
             <th>Nombre</th>
             <th>Correo</th>
             <th>Documento</th>
             <th>Contraseña</th>
             <th>Estado de Usuario</th>
-            <th>Roles</th>
             <th>Permisos</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
           {currentItems.map((configuracion) => (
             <tr key={configuracion._id}>
+              <td>{configuracion._id}</td>
+              <td>{configuracion.rol.map((r) => r.nombre_rol).join(', ')}</td>
               <td>{configuracion.nombre}</td>
               <td>{configuracion.correo}</td>
               <td>{configuracion.documento}</td>
               <td>{configuracion.contraseña}</td>
               <td>{configuracion.estado_usuario ? 'Activo' : 'Inactivo'}</td>
-              <td>{configuracion.rol.map((r) => r.nombre_rol).join(', ')}</td>
               <td>{configuracion.permisos.map((p) => p.nombre_permiso).join(', ')}</td>
+              <td>
+                <button onClick={() => handleEditarConfiguracion(configuracion)}>Editar</button>
+                <button onClick={() => handleEliminarConfiguracion(configuracion._id)}>Eliminar</button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -157,8 +227,28 @@ function App() {
         isOpen={modalIsOpen}
         onRequestClose={() => setModalIsOpen(false)}
       >
-        <h2>Agregar Nueva Configuración</h2>
-        <form onSubmit={crearConfiguracion}>
+        <h2>{nuevaConfiguracion._id ? 'Editar Configuración' : 'Agregar Nueva Configuración'}</h2>
+        <form onSubmit={nuevaConfiguracion._id ? editarConfiguracion : crearConfiguracion}>
+        <div>
+            <label>Selecciona un rol:</label>
+            <select
+              name="rol"
+              onChange={(e) =>
+                setNuevaConfiguracion({
+                  ...nuevaConfiguracion,
+                  rol: { nombre_rol: e.target.value, estado_rol: true },
+                })
+              }
+            >
+              <option value="">-- Seleccione un Rol --</option>
+              <option value="administrador" selected={nuevaConfiguracion.rol.nombre_rol === 'administrador'}>
+                Administrador
+              </option>
+              <option value="cliente" selected={nuevaConfiguracion.rol.nombre_rol === 'cliente'}>
+                Cliente
+              </option>
+            </select>
+          </div>
           <input
             type="text"
             placeholder="Nombre"
@@ -175,6 +265,7 @@ function App() {
             onChange={handleInputChange}
           />
 
+          <label>Documento:</label>
           <input
             type="number"
             placeholder="Documento"
@@ -183,6 +274,7 @@ function App() {
             onChange={handleInputChange}
           />
 
+          <label>Contraseña:</label>
           <input
             type="number"
             placeholder="Contraseña"
@@ -192,27 +284,36 @@ function App() {
           />
 
           <div>
-            <p>Selecciona un rol:</p>
-            <select
-              name="rol"
-              onChange={(e) =>
-                setNuevaConfiguracion({
-                  ...nuevaConfiguracion,
-                  rol: [{ nombre_rol: e.target.value, estado_rol: true }],
-                })
-              }
-            >
-              <option value="administrador">Administrador</option>
-              <option value="cliente">Cliente</option>
-            </select>
+            <label>Permisos:</label>
+            {nuevaConfiguracion.permisos.map((permiso, index) => (
+              <div key={index}>
+                <input
+                  type="text"
+                  placeholder="Escribe el nombre del permiso"
+                  value={permiso.nombre_permiso}
+                  onChange={(e) => {
+                    const nuevosPermisos = [...nuevaConfiguracion.permisos];
+                    nuevosPermisos[index] = {
+                      nombre_permiso: e.target.value,
+                      estado_permiso: true,
+                    };
+                    setNuevaConfiguracion({
+                      ...nuevaConfiguracion,
+                      permisos: nuevosPermisos,
+                    });
+                  }}
+                />
+              </div>
+            ))}
+            <button type="button" onClick={() => agregarPermiso()}>Agregar Permiso</button>
+            <button type="button" onClick={() => eliminarUltimoPermiso()}>Eliminar Último Permiso</button>
           </div>
 
-          {/* Aquí puedes agregar la lógica para mostrar un modal de permisos */}
-          {/* y permitir la selección de permisos al agregar y editar configuración */}
 
-          <button type="submit">Crear Configuración</button>
+          <button type="submit">{nuevaConfiguracion._id ? 'Editar Configuración' : 'Crear Configuración'}</button>
         </form>
       </Modal>
+
     </div>
   );
 }
