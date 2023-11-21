@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import jsPDF from 'jspdf';
 import Modal from 'react-modal';
+import swal from 'sweetalert';
+
+
 import './App.css';
 
 Modal.setAppElement('#root');
@@ -15,7 +18,7 @@ function App() {
     nombre: '',
     correo: '',
     documento: 0,
-    contraseña: 0,
+    contraseña: '',
     estado_usuario: true,
   });
   const [modalIsOpen, setModalIsOpen] = useState(false);
@@ -34,6 +37,19 @@ function App() {
         console.error('Error fetching data:', error);
       });
   }, []);
+
+   const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    
+    // Validación: Permitir solo letras en el nombre
+    if (name === 'nombre' && !/^[A-Za-z]+$/.test(value)) {
+      return;
+    }
+    
+    setNuevaConfiguracion({ ...nuevaConfiguracion, [name]: value });
+    
+  };
+
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
@@ -55,31 +71,42 @@ function App() {
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setNuevaConfiguracion({ ...nuevaConfiguracion, [name]: value });
+ 
+  const validarCorreo = () => {
+    const correoValido =
+      /^[A-Za-z0-9._%+-]+@(gmail\.com|hotmail\.com)$/i.test(nuevaConfiguracion.correo) ||
+      nuevaConfiguracion.correo === ''; // Permitir campo vacío
+
+    if (!correoValido) {
+      swal('Error', 'Por favor, ingresa un correo válido (gmail.com o hotmail.com).', 'error');
+    }
+    return correoValido;
   };
 
   const crearConfiguracion = () => {
+    if (!validarCorreo()) {
+      return;
+    }
+
     axios
-      .post('http://localhost:9000/api/gestion_configuracion', nuevaConfiguracion)
-      .then((response) => {
-        setConfiguraciones([...configuraciones, response.data]);
-        setNuevaConfiguracion({
-          rol: [],  // Limpiamos el rol para futuras creaciones
-          permisos: [],
-          nombre: '',
-          correo: '',
-          documento: 0,
-          contraseña: 0,
-          estado_usuario: true,
-        });
-        setModalIsOpen(false);
-      })
-      .catch((error) => {
-        console.error('Error creating configuracion:', error);
+    .post('http://localhost:9000/api/gestion_configuracion', nuevaConfiguracion)
+    .then((response) => {
+      setConfiguraciones([...configuraciones, response.data]);
+      setNuevaConfiguracion({
+        rol: [],
+        permisos: [],
+        nombre: '',
+        correo: '',
+        documento: 0,
+        contraseña: '',
+        estado_usuario: true,
       });
-  };
+      setModalIsOpen(false);
+     })
+    .catch((error) => {
+      console.error('Error creating configuracion:', error);
+    });
+};
 
   const agregarPermiso = () => {
     setNuevaConfiguracion({
@@ -101,6 +128,15 @@ function App() {
   };
 
   const editarConfiguracion = () => {
+      if (!nuevaConfiguracion.nombre || !nuevaConfiguracion.correo || !nuevaConfiguracion.documento || !nuevaConfiguracion.contraseña) {
+    alert('Todos los campos son obligatorios. Por favor, completa la información.');
+    return;
+  }
+
+  if (isNaN(nuevaConfiguracion.documento) || isNaN(nuevaConfiguracion.contraseña)) {
+    alert('El documento y la contraseña deben ser números.');
+    return;
+  }
     axios
       .put(`http://localhost:9000/api/gestion_configuracion/${nuevaConfiguracion._id}`, nuevaConfiguracion)
       .then((response) => {
@@ -123,16 +159,30 @@ function App() {
     setModalIsOpen(true);
   };
   
-  const handleEliminarConfiguracion = (configuracionId) => {
-    axios
-      .delete(`http://localhost:9000/api/gestion_configuracion/${configuracionId}`)
-      .then((response) => {
-        // Actualizar el estado después de eliminar
-        setConfiguraciones(configuraciones.filter((config) => config._id !== configuracionId));
-      })
-      .catch((error) => {
-        console.error('Error deleting configuracion:', error);
-      });
+ const handleEliminarConfiguracion = (configuracionId) => {
+    // Confirmación antes de eliminar con sweetalert
+    swal({
+      title: '¿Estás seguro?',
+      text: 'Una vez eliminada, no podrás recuperar esta configuración.',
+      icon: 'warning',
+      buttons: ['Cancelar', 'Eliminar'],
+      dangerMode: true,
+    }).then((willDelete) => {
+      if (willDelete) {
+        axios
+          .delete(`http://localhost:9000/api/gestion_configuracion/${configuracionId}`)
+          .then((response) => {
+            setConfiguraciones(configuraciones.filter((config) => config._id !== configuracionId));
+            swal('Éxito', 'La configuración se ha eliminado correctamente.', 'success');
+          })
+          .catch((error) => {
+            console.error('Error deleting configuracion:', error);
+            swal('Error', 'Hubo un problema al eliminar la configuración. Inténtalo de nuevo.', 'error');
+          });
+      } else {
+        swal('La configuración no se ha eliminado.');
+      }
+    });
   };
   
 
@@ -274,9 +324,8 @@ function App() {
             onChange={handleInputChange}
           />
 
-          <label>Contraseña:</label>
           <input
-            type="number"
+            type="text"
             placeholder="Contraseña"
             name="contraseña"
             value={nuevaConfiguracion.contraseña}
@@ -312,6 +361,8 @@ function App() {
 
           <button type="submit">{nuevaConfiguracion._id ? 'Editar Configuración' : 'Crear Configuración'}</button>
         </form>
+
+
       </Modal>
 
     </div>

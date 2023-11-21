@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { text } = require("pdfkit");
 
 const configuracionSchema = mongoose.Schema({
     rol: [
@@ -38,7 +39,7 @@ const configuracionSchema = mongoose.Schema({
         required: true
     },
     contraseña: {
-        type: Number,
+        type: String,
         required: true
     },
     estado_usuario: {
