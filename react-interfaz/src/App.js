@@ -4,7 +4,6 @@ import jsPDF from 'jspdf';
 import Modal from 'react-modal';
 import swal from 'sweetalert';
 
-
 import './App.css';
 
 Modal.setAppElement('#root');
@@ -13,6 +12,7 @@ function App() {
   const [configuraciones, setConfiguraciones] = useState([]);
   const [originalConfiguraciones, setOriginalConfiguraciones] = useState([]);
   const [nuevaConfiguracion, setNuevaConfiguracion] = useState({
+    
     rol: [],
     permisos: [],
     nombre: '',
@@ -21,6 +21,7 @@ function App() {
     contraseña: '',
     estado_usuario: true,
   });
+
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(4);
@@ -30,24 +31,24 @@ function App() {
     axios
       .get('http://localhost:9000/api/gestion_configuracion')
       .then((response) => {
-        setConfiguraciones(response.data);
-        setOriginalConfiguraciones(response.data); // Almacena el estado original
+        setConfiguraciones(response.data || []); // Asegúrate de manejar el caso de respuesta.data siendo undefined
+        setOriginalConfiguraciones(response.data || []); // Asegúrate de manejar el caso de respuesta.data siendo undefined
       })
       .catch((error) => {
         console.error('Error fetching data:', error);
       });
   }, []);
+  
 
-   const handleInputChange = (e) => {
+  const handleInputChange = (e) => {
     const { name, value } = e.target;
-    
-    // Validación: Permitir solo letras en el nombre
-    if (name === 'nombre' && !/^[A-Za-z]+$/.test(value)) {
+
+    // Validación: Permitir solo letras y espacios en el nombre
+    if (name === 'nombre' && !/^[A-Za-z\s]+$/.test(value)) {
       return;
     }
-    
+
     setNuevaConfiguracion({ ...nuevaConfiguracion, [name]: value });
-    
   };
 
 
@@ -71,41 +72,91 @@ function App() {
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
- 
-  const validarCorreo = () => {
-    const correoValido =
-      /^[A-Za-z0-9._%+-]+@(gmail\.com|hotmail\.com)$/i.test(nuevaConfiguracion.correo) ||
-      nuevaConfiguracion.correo === ''; // Permitir campo vacío
-
-    if (!correoValido) {
-      swal('Error', 'Por favor, ingresa un correo válido (gmail.com o hotmail.com).', 'error');
-    }
-    return correoValido;
-  };
-
-  const crearConfiguracion = () => {
-    if (!validarCorreo()) {
+  const crearConfiguracion = (event) => {
+    event.preventDefault(); // Evitar la recarga automática de la página
+  
+    if (
+      !validarRol() ||
+      !validarNombre() ||
+      !validarCorreo() ||
+      !validarContraseña() ||
+      !validarDocumento() ||
+      !validarPermisos()
+    ) {
       return;
     }
-
+  
     axios
-    .post('http://localhost:9000/api/gestion_configuracion', nuevaConfiguracion)
-    .then((response) => {
-      setConfiguraciones([...configuraciones, response.data]);
-      setNuevaConfiguracion({
-        rol: [],
-        permisos: [],
-        nombre: '',
-        correo: '',
-        documento: 0,
-        contraseña: '',
-        estado_usuario: true,
+      .post('http://localhost:9000/api/gestion_configuracion', nuevaConfiguracion)
+      .then((response) => {
+        setConfiguraciones([...configuraciones, response.data]);
+        setNuevaConfiguracion({
+          rol: [],
+          permisos: [],
+          nombre: '',
+          correo: '',
+          documento: 0,
+          contraseña: '',
+          estado_usuario: true,
+        });
+        setModalIsOpen(false);
+      })
+      .catch((error) => {
+        console.error('Error creating configuracion:', error);
       });
-      setModalIsOpen(false);
-     })
-    .catch((error) => {
-      console.error('Error creating configuracion:', error);
-    });
+  };
+
+const validarRol = () => {
+  if (!nuevaConfiguracion.rol.nombre_rol || nuevaConfiguracion.rol.nombre_rol === '--Seleccione un rol--') {
+    swal('Error', 'Por favor, selecciona un rol válido.', 'error');
+    return false;
+  }
+  return true;
+};
+
+const validarNombre = () => {
+  if (!nuevaConfiguracion.nombre || !/^[A-Za-z\s]*$/.test(nuevaConfiguracion.nombre)) {
+    swal('Error', 'Por favor, ingresa un nombre válido (solo letras y espacios).', 'error');
+    return false;
+  }
+  return true;
+};
+
+
+
+const validarCorreo = () => {
+  const correoValido =
+    /^[A-Za-z0-9._%+-]+@(gmail\.com|hotmail\.com)$/i.test(nuevaConfiguracion.correo) &&
+    nuevaConfiguracion.correo !== '';
+
+  if (!correoValido) {
+    swal('Error', 'Por favor, ingresa un correo válido (gmail.com o hotmail.com).', 'error');
+  }
+  return correoValido;
+};
+
+const validarContraseña = () => {
+  if (!/^[A-Za-z0-9!@#$%^&*()_+=-]+$/.test(nuevaConfiguracion.contraseña)) {
+    swal('Error', 'La contraseña debe contener caracteres especiales.', 'error');
+    return false;
+  }
+  return true;
+};
+
+const validarDocumento = () => {
+  if (!nuevaConfiguracion.documento || isNaN(nuevaConfiguracion.documento)) {
+    swal('Error', 'Por favor, ingresa un documento válido (número).', 'error');
+    return false;
+  }
+  return true;
+};
+
+const validarPermisos = () => {
+  if (nuevaConfiguracion.permisos.length === 0) {
+    swal('Error', 'Por favor, agrega al menos un permiso.', 'error');
+    return false;
+  }
+  return true;
 };
 
   const agregarPermiso = () => {
@@ -127,16 +178,33 @@ function App() {
     });
   };
 
-  const editarConfiguracion = () => {
-      if (!nuevaConfiguracion.nombre || !nuevaConfiguracion.correo || !nuevaConfiguracion.documento || !nuevaConfiguracion.contraseña) {
-    alert('Todos los campos son obligatorios. Por favor, completa la información.');
-    return;
-  }
+  const editarConfiguracion = (event) => {
+    event.preventDefault(); // Evitar la recarga automática de la página
+  
+    if (
+      !validarRol() ||
+      !validarNombre() ||
+      !validarCorreo() ||
+      !validarContraseña() ||
+      !validarDocumento() ||
+      !validarPermisos()
+    ) {
+      return;
+    }
+  
+    axios
+      .put(`http://localhost:9000/api/gestion_configuracion/${nuevaConfiguracion._id}`, nuevaConfiguracion)
+      .then((response) => {
+        const index = configuraciones.findIndex((config) => config._id === nuevaConfiguracion._id);
+        const nuevasConfiguraciones = [...configuraciones];
+        nuevasConfiguraciones[index] = response.data;
+        setConfiguraciones(nuevasConfiguraciones);
+        setModalIsOpen(false);
+      })
+      .catch((error) => {
+        console.error('Error editando configuración:', error);
+      });
 
-  if (isNaN(nuevaConfiguracion.documento) || isNaN(nuevaConfiguracion.contraseña)) {
-    alert('El documento y la contraseña deben ser números.');
-    return;
-  }
     axios
       .put(`http://localhost:9000/api/gestion_configuracion/${nuevaConfiguracion._id}`, nuevaConfiguracion)
       .then((response) => {
@@ -155,9 +223,19 @@ function App() {
   
 
   const handleEditarConfiguracion = (configuracion) => {
-    setNuevaConfiguracion({ ...configuracion });
+    // Extraer roles y permisos de la configuración existente
+    const { rol, permisos, ...configuracionRest } = configuracion;
+  
+    // Establecer el estado de nuevaConfiguracion con la configuración existente
+    setNuevaConfiguracion({
+      ...configuracionRest,
+      rol: { nombre_rol: configuracion.rol[0].nombre_rol },
+      permisos: configuracion.permisos.map((permiso) => ({ ...permiso })), // Copiar permisos
+    });
+  
     setModalIsOpen(true);
   };
+  
   
  const handleEliminarConfiguracion = (configuracionId) => {
     // Confirmación antes de eliminar con sweetalert
@@ -244,22 +322,29 @@ function App() {
           </tr>
         </thead>
         <tbody>
-          {currentItems.map((configuracion) => (
-            <tr key={configuracion._id}>
-              <td>{configuracion._id}</td>
-              <td>{configuracion.rol.map((r) => r.nombre_rol).join(', ')}</td>
-              <td>{configuracion.nombre}</td>
-              <td>{configuracion.correo}</td>
-              <td>{configuracion.documento}</td>
-              <td>{configuracion.contraseña}</td>
-              <td>{configuracion.estado_usuario ? 'Activo' : 'Inactivo'}</td>
-              <td>{configuracion.permisos.map((p) => p.nombre_permiso).join(', ')}</td>
-              <td>
-                <button onClick={() => handleEditarConfiguracion(configuracion)}>Editar</button>
-                <button onClick={() => handleEliminarConfiguracion(configuracion._id)}>Eliminar</button>
-              </td>
-            </tr>
-          ))}
+        {configuraciones.map((configuracion) => {
+            console.log('Propiedades de Configuracion:', configuracion);
+            return (
+              <tr key={configuracion._id}>
+                <td>{configuracion._id}</td>
+                <td>{configuracion.rol ? configuracion.rol.map((r) => r.nombre_rol).join(', ') : ''}</td>
+                <td>{configuracion.nombre}</td>
+                <td>{configuracion.correo}</td>
+                <td>{configuracion.documento}</td>
+                <td>{configuracion.contraseña}</td>
+                <td>{configuracion.estado_usuario ? 'Activo' : 'Inactivo'}</td>
+                <td>{configuracion.permisos ? configuracion.permisos.map((p) => p.nombre_permiso).join(', ') : ''}</td>
+                <td>
+                  <button onClick={() => handleEditarConfiguracion(configuracion)}>Editar</button>
+                  <button onClick={() => handleEliminarConfiguracion(configuracion._id)}>Eliminar</button>
+                </td>
+              </tr>
+            );
+          })}
+
+
+
+              
         </tbody>
       </table>
 
@@ -278,11 +363,12 @@ function App() {
         onRequestClose={() => setModalIsOpen(false)}
       >
         <h2>{nuevaConfiguracion._id ? 'Editar Configuración' : 'Agregar Nueva Configuración'}</h2>
-        <form onSubmit={nuevaConfiguracion._id ? editarConfiguracion : crearConfiguracion}>
+        <form onSubmit={nuevaConfiguracion && nuevaConfiguracion._id ? editarConfiguracion :crearConfiguracion}>
         <div>
             <label>Selecciona un rol:</label>
             <select
               name="rol"
+              value={nuevaConfiguracion.rol.nombre_rol || ''} // Usa value en lugar de selected
               onChange={(e) =>
                 setNuevaConfiguracion({
                   ...nuevaConfiguracion,
@@ -291,12 +377,8 @@ function App() {
               }
             >
               <option value="">-- Seleccione un Rol --</option>
-              <option value="administrador" selected={nuevaConfiguracion.rol.nombre_rol === 'administrador'}>
-                Administrador
-              </option>
-              <option value="cliente" selected={nuevaConfiguracion.rol.nombre_rol === 'cliente'}>
-                Cliente
-              </option>
+              <option value="administrador">Administrador</option>
+              <option value="cliente">Cliente</option>
             </select>
           </div>
           <input

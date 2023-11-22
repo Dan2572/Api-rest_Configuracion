@@ -4,28 +4,28 @@ const { text } = require("pdfkit");
 const configuracionSchema = mongoose.Schema({
     rol: [
         {
-            nombre_rol: {
-                type: String,
-                required: true
-            },
-            estado_rol: {
-                type: Boolean,
-                required: true
-            }
+          nombre_rol: {
+            type: String,
+            required: true
+          },
+          estado_rol: {
+            type: Boolean,
+            required: true
+          }
         }
-    ],
-    permisos: [
+      ],
+      permisos: [
         {
-            nombre_permiso: {
-                type: String,
-                required: true
-            },
-            estado_permiso: {
-                type: Boolean,
-                required: true
-            }
+          nombre_permiso: {
+            type: String,
+            required: true
+          },
+          estado_permiso: {
+            type: Boolean,
+            required: true
+          }
         }
-    ],
+      ],
     nombre: {
         type: String,
         required: true
