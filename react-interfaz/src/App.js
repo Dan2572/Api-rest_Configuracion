@@ -40,31 +40,32 @@ function App() {
   }, []);
   
 
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-
-    // Validación: Permitir solo letras y espacios en el nombre
-    if (name === 'nombre' && !/^[A-Za-z\s]+$/.test(value)) {
-      return;
-    }
-
     setNuevaConfiguracion({ ...nuevaConfiguracion, [name]: value });
+    setSearchTerm('');
   };
-
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       const filtered = originalConfiguraciones.filter((configuracion) =>
-        String(configuracion.documento).toLowerCase().includes(searchTerm.toLowerCase())
+        String(configuracion.documento).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        configuracion.rol.some((r) => r.nombre_rol.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        configuracion.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        configuracion.correo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(configuracion.estado_usuario ? 'Activo' : 'Inactivo').toLowerCase().includes(searchTerm.toLowerCase())
       );
       setConfiguraciones(filtered);
     }
   };
   
+
   const resetSearch = () => {
     setSearchTerm('');
     setConfiguraciones(originalConfiguraciones);
   };
+
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -191,35 +192,20 @@ const validarPermisos = () => {
     ) {
       return;
     }
-  
     axios
-      .put(`http://localhost:9000/api/gestion_configuracion/${nuevaConfiguracion._id}`, nuevaConfiguracion)
-      .then((response) => {
-        const index = configuraciones.findIndex((config) => config._id === nuevaConfiguracion._id);
-        const nuevasConfiguraciones = [...configuraciones];
-        nuevasConfiguraciones[index] = response.data;
-        setConfiguraciones(nuevasConfiguraciones);
-        setModalIsOpen(false);
-      })
-      .catch((error) => {
-        console.error('Error editando configuración:', error);
-      });
-
-    axios
-      .put(`http://localhost:9000/api/gestion_configuracion/${nuevaConfiguracion._id}`, nuevaConfiguracion)
-      .then((response) => {
-        // Actualizar el estado de configuraciones manualmente
-        const index = configuraciones.findIndex((config) => config._id === nuevaConfiguracion._id);
-        const nuevasConfiguraciones = [...configuraciones];
-        nuevasConfiguraciones[index] = response.data;
-        setConfiguraciones(nuevasConfiguraciones);
-        setModalIsOpen(false);
-      })
-      .catch((error) => {
-        console.error('Error editando configuración:', error);
-      });
-  };
-  
+    .put(`http://localhost:9000/api/gestion_configuracion/${nuevaConfiguracion._id}`, nuevaConfiguracion)
+    .then((response) => {
+      const index = configuraciones.findIndex((config) => config._id === nuevaConfiguracion._id);
+      const nuevasConfiguraciones = [...configuraciones];
+      nuevasConfiguraciones[index] = response.data;
+      setConfiguraciones(nuevasConfiguraciones);
+      setModalIsOpen(false);
+      window.location.reload();
+    })
+    .catch((error) => {
+      console.error('Error editando configuración:', error);
+    });
+};
   
 
   const handleEditarConfiguracion = (configuracion) => {
@@ -230,7 +216,7 @@ const validarPermisos = () => {
     setNuevaConfiguracion({
       ...configuracionRest,
       rol: { nombre_rol: configuracion.rol[0].nombre_rol },
-      permisos: configuracion.permisos.map((permiso) => ({ ...permiso })), // Copiar permisos
+      permisos: configuracion.permisos.map((permiso) => ({ ...permiso })),
     });
   
     setModalIsOpen(true);
@@ -252,6 +238,7 @@ const validarPermisos = () => {
           .then((response) => {
             setConfiguraciones(configuraciones.filter((config) => config._id !== configuracionId));
             swal('Éxito', 'La configuración se ha eliminado correctamente.', 'success');
+            window.location.reload();
           })
           .catch((error) => {
             console.error('Error deleting configuracion:', error);
@@ -269,17 +256,39 @@ const validarPermisos = () => {
       const doc = new jsPDF();
       let y = 15;
 
-      doc.text('Reporte de Configuraciones', 15, 10);
+        
+      // Obtén la fecha y hora actual de descarga
+      const downloadDate = new Date();
+      const formattedDownloadDate = `${downloadDate.toLocaleDateString()} ${downloadDate.toLocaleTimeString()}`;
 
+      y += 10; // Separación entre el título y la fecha
+  
+      // Agrega la fecha de descarga en la parte superior derecha de la primera página
+      doc.text(`Fecha de Descarga: ${formattedDownloadDate}`, doc.internal.pageSize.width - 15, 15, { align: 'right' });
+  
+      // Centro el título
+      const title = 'Reporte de Configuraciones';
+      const titleWidth = doc.getStringUnitWidth(title) * doc.internal.getFontSize() / doc.internal.scaleFactor;
+      const marginLeft = (doc.internal.pageSize.width - titleWidth) / 2;
+      doc.text(title, marginLeft, y);
+  
+      
+  
+  
+      y += 20; // Separación entre la fecha y el primer registro
+  
       currentItems.forEach((configuracion) => {
+        if (!configuracion.estado_usuario) {
+          return; // Omitir configuraciones con estado de usuario inactivo
+        }
         doc.text(`Nombre: ${configuracion.nombre}`, 15, y);
         doc.text(`Correo: ${configuracion.correo}`, 15, y + 10);
         doc.text(`Documento: ${configuracion.documento}`, 15, y + 20);
-        doc.text(`Contraseña: ${configuracion.contraseña}`, 15, y + 30);
+        doc.text(`Contraseña: ${'*'.repeat(configuracion.contraseña.length)}`, 15, y + 30);
         doc.text(`Estado de Usuario: ${configuracion.estado_usuario ? 'Activo' : 'Inactivo'}`, 15, y + 40);
         doc.text(`Roles: ${configuracion.rol.map((r) => r.nombre_rol).join(', ')}`, 15, y + 50);
         doc.text(`Permisos: ${configuracion.permisos.map((p) => p.nombre_permiso).join(', ')}`, 15, y + 60);
-
+      
         y += 80;
         if (y >= 280) {
           doc.addPage();
@@ -287,18 +296,20 @@ const validarPermisos = () => {
         }
       });
 
+  
       doc.save('reporte_configuraciones.pdf');
     } else {
       console.error('currentItems no es un array:', currentItems);
     }
   };
+  
 
   return (
     <div>
       <h1>Configuraciones</h1>
       <input
         type="text"
-        placeholder="Buscar por documento"
+        placeholder="Buscar..."
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
         onKeyPress={handleKeyPress}
@@ -322,30 +333,34 @@ const validarPermisos = () => {
           </tr>
         </thead>
         <tbody>
-        {configuraciones.map((configuracion) => {
-            console.log('Propiedades de Configuracion:', configuracion);
-            return (
-              <tr key={configuracion._id}>
-                <td>{configuracion._id}</td>
-                <td>{configuracion.rol ? configuracion.rol.map((r) => r.nombre_rol).join(', ') : ''}</td>
-                <td>{configuracion.nombre}</td>
-                <td>{configuracion.correo}</td>
-                <td>{configuracion.documento}</td>
-                <td>{configuracion.contraseña}</td>
-                <td>{configuracion.estado_usuario ? 'Activo' : 'Inactivo'}</td>
-                <td>{configuracion.permisos ? configuracion.permisos.map((p) => p.nombre_permiso).join(', ') : ''}</td>
-                <td>
-                  <button onClick={() => handleEditarConfiguracion(configuracion)}>Editar</button>
-                  <button onClick={() => handleEliminarConfiguracion(configuracion._id)}>Eliminar</button>
-                </td>
-              </tr>
-            );
-          })}
+        {configuraciones && configuraciones.length > 0 ? (
+  configuraciones.map((configuracion) => {
+    console.log('Propiedades de Configuracion:', configuracion);
+    return (
+      <tr key={configuracion._id}>
+        <td>{configuracion._id}</td>
+        <td>{configuracion.rol ? configuracion.rol.map((r) => r.nombre_rol).join(', ') : ''}</td>
+        <td>{configuracion.nombre}</td>
+        <td>{configuracion.correo}</td>
+        <td>{configuracion.documento}</td>
+        <td>{'*'.repeat(configuracion.contraseña.length)}</td>
+        <td>{configuracion.estado_usuario ? 'Activo' : 'Inactivo'}</td>
+        <td>{configuracion.permisos ? configuracion.permisos.map((p) => p.nombre_permiso).join(', ') : ''}</td>
+        <td>
+          <button onClick={() => handleEditarConfiguracion(configuracion)}>Editar</button>
+          <button onClick={() => handleEliminarConfiguracion(configuracion._id)}>Eliminar</button>
+        </td>
+      </tr>
+    );
+  })
+) : (
+  <tr>
+    <td colSpan="9">No hay configuraciones disponibles</td>
+  </tr>
+)}
 
-
-
-              
         </tbody>
+
       </table>
 
       <div className="pagination">
@@ -406,13 +421,14 @@ const validarPermisos = () => {
             onChange={handleInputChange}
           />
 
-          <input
-            type="text"
-            placeholder="Contraseña"
-            name="contraseña"
-            value={nuevaConfiguracion.contraseña}
-            onChange={handleInputChange}
-          />
+        <input
+          type="text"
+          placeholder="Contraseña"
+          name="contraseña"
+          value={nuevaConfiguracion._id ? '*'.repeat(nuevaConfiguracion.contraseña.length) : nuevaConfiguracion.contraseña}
+          onChange={handleInputChange}
+          disabled={nuevaConfiguracion._id ? true : false}
+        />
 
           <div>
             <label>Permisos:</label>
